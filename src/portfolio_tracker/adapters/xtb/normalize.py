@@ -22,6 +22,7 @@ TYPE_MAP: dict[str, EventType] = {
     "dividend from foreign company on pl market": EventType.DIVIDEND,
     "free funds interest": EventType.INTEREST,
     "free funds interest tax": EventType.TAX,
+    "withholding tax": EventType.TAX,
     "sec fee": EventType.FEE,
     "deposit": EventType.DEPOSIT,
     "transfer": EventType.FX_CONVERSION,
@@ -53,8 +54,17 @@ def normalize(raw: dict[str, Any], account: Account, source_file: Path) -> Event
     parsed = raw.get("comment_parsed", {})
     symbol = raw.get("symbol")
     instrument: Instrument | None = (
-        Instrument(symbol=symbol, asset_class=AssetClass.EQUITY) if symbol else None
+        Instrument(symbol=symbol, name=raw.get("instrument_name"), asset_class=AssetClass.EQUITY)
+        if symbol
+        else None
     )
+
+    quantity = parsed.get("quantity")
+    if quantity is not None and event_type == EventType.TRADE:
+        # Sign: OPEN action = buy (positive), CLOSE = sell (negative)
+        action = parsed.get("action", "").upper()
+        if action == "CLOSE":
+            quantity = -quantity
 
     return Event(
         id=raw["id"],
@@ -70,7 +80,7 @@ def normalize(raw: dict[str, Any], account: Account, source_file: Path) -> Event
             raw=raw.get("raw", {}),
         ),
         instrument=instrument,
-        quantity=parsed.get("quantity"),
+        quantity=quantity,
         price=parsed.get("price"),
     )
 

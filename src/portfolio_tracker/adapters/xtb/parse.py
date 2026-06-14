@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -87,7 +88,9 @@ def parse_comment(type_str: str, comment: str) -> dict[str, Any]:
 
 def parse_workbook(path: Path, account: Account) -> list[dict[str, Any]]:
     """Parse Cash operations sheet from an XTB export into a list of raw row dicts."""
-    wb = openpyxl.load_workbook(path, data_only=True)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Workbook contains no default style", UserWarning)
+        wb = openpyxl.load_workbook(path, data_only=True)
 
     sheet_name = next(
         (name for name in wb.sheetnames if "cash" in name.lower()),
@@ -129,7 +132,8 @@ def parse_workbook(path: Path, account: Account) -> list[dict[str, Any]]:
             "id": f"{account.account_id}:{id_val}",
             "type_str": type_val,
             "timestamp": timestamp,
-            "symbol": str(get("Symbol") or "").strip() or None,
+            "symbol": str(get("Ticker") or get("Symbol") or "").strip() or None,
+            "instrument_name": str(get("Instrument") or "").strip() or None,
             "amount": _parse_decimal(get("Amount")),
             "comment": comment,
             "comment_parsed": parse_comment(type_val, comment),

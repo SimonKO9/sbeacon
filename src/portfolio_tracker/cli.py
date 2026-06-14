@@ -44,8 +44,10 @@ def load_xtb(
     if dry_run:
         return
 
-    ledger_mod.append(events, ledger)
-    idx.insert(events, db)
+    known = idx.existing_ids(db)
+    new_events = [e for e in events if e.id not in known]
+    ledger_mod.append(new_events, ledger)
+    idx.insert(new_events, db)
     console.print(f"[green]Written to {ledger} and {db}[/green]")
 
 
@@ -75,9 +77,47 @@ def accounts(db: Annotated[Path, typer.Option(hidden=True)] = _DB) -> None:
 
 
 @app.command()
-def positions() -> None:
-    """Show open positions (not yet implemented)."""
-    console.print("[yellow]Not yet implemented.[/yellow]")
+def positions(
+    account: Annotated[str | None, typer.Option("--account", help="Filter by account ID")] = None,
+    ledger: Annotated[Path, typer.Option(hidden=True)] = _LEDGER,
+) -> None:
+    """Show open positions."""
+    from portfolio_tracker.domain.events import EventType
+    from portfolio_tracker.reports.positions import compute_positions
+    from portfolio_tracker.storage.ledger import read
+
+    if not ledger.exists():
+        console.print("[yellow]No ledger found — run 'tracker load xtb' first.[/yellow]")
+        raise typer.Exit(1)
+
+    events = [e for e in read(ledger) if e.type == EventType.TRADE]
+    if account:
+        events = [e for e in events if e.account_id == account]
+
+    posns = compute_positions(events)
+
+    if not posns:
+        console.print("[yellow]No open positions found.[/yellow]")
+        return
+
+    table = Table(title="Open positions")
+    table.add_column("Symbol")
+    table.add_column("Account")
+    table.add_column("Qty", justify="right")
+    table.add_column("Avg cost", justify="right")
+    table.add_column("Ccy")
+    # TODO: Market value, Unrealized P&L, Weight % — need current prices
+
+    for pos in posns:
+        table.add_row(
+            pos.symbol,
+            pos.account_id,
+            f"{pos.quantity:.4f}",
+            f"{pos.avg_cost:.4f}",
+            pos.currency,
+        )
+
+    console.print(table)
 
 
 @app.command()

@@ -69,6 +69,18 @@ def insert(events: list[Event], db_path: Path) -> int:
     return len(events)
 
 
+def existing_ids(db_path: Path) -> set[str]:
+    """Return the set of event ids already in the index."""
+    if not db_path.exists():
+        return set()
+    con = _open(db_path)
+    try:
+        rows = con.execute("SELECT id FROM events").fetchall()
+        return {r[0] for r in rows}
+    finally:
+        con.close()
+
+
 def rebuild(ledger_path: Path, db_path: Path) -> int:
     """Drop and rebuild the index from the canonical ledger."""
     from portfolio_tracker.storage.ledger import read
