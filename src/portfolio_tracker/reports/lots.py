@@ -14,9 +14,10 @@ class Lot:
     symbol: str
     account_id: str
     quantity: Decimal
-    price: Decimal
-    currency: str
+    price: Decimal        # exchange price (display only)
+    currency: str         # account base currency
     remaining: Decimal
+    cost_per_unit: Decimal  # per-unit cost in account base currency (|amount| / |qty|)
 
 
 @dataclass
@@ -24,7 +25,7 @@ class ClosedLot:
     buy_lot: Lot
     sell_event_id: str
     quantity: Decimal
-    realized_pnl: Decimal  # in account base currency; TODO: convert to PLN reporting currency
+    realized_pnl: Decimal  # in account base currency (buy_lot.currency)
 
 
 class LotMatchingPolicy(Protocol):
@@ -49,6 +50,7 @@ def fifo(events: list[Event]) -> tuple[list[Lot], list[ClosedLot]]:
         qty = event.quantity
 
         if qty > 0:
+            cost_per_unit = abs(event.amount) / qty
             open_queue.append(
                 Lot(
                     event_id=event.id,
@@ -58,10 +60,12 @@ def fifo(events: list[Event]) -> tuple[list[Lot], list[ClosedLot]]:
                     price=event.price,
                     currency=event.currency,
                     remaining=qty,
+                    cost_per_unit=cost_per_unit,
                 )
             )
         elif qty < 0:
             sell_qty = -qty
+            sell_cost_per_unit = abs(event.amount) / sell_qty
             while sell_qty > 0 and open_queue:
                 lot = open_queue[0]
                 matched = min(lot.remaining, sell_qty)
@@ -70,7 +74,7 @@ def fifo(events: list[Event]) -> tuple[list[Lot], list[ClosedLot]]:
                         buy_lot=lot,
                         sell_event_id=event.id,
                         quantity=matched,
-                        realized_pnl=matched * (event.price - lot.price),
+                        realized_pnl=matched * (sell_cost_per_unit - lot.cost_per_unit),
                     )
                 )
                 lot.remaining -= matched

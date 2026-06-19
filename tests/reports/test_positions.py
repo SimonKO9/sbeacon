@@ -48,7 +48,7 @@ def test_single_buy_creates_position() -> None:
     assert posns[0].symbol == "AAPL.US"
     assert posns[0].quantity == Decimal("10")
     assert posns[0].avg_cost == Decimal("100")
-    assert posns[0].currency == "PLN"
+    assert posns[0].cost_currency == "PLN"  # account base currency
 
 
 def test_fully_sold_position_excluded() -> None:
@@ -93,6 +93,115 @@ def test_multiple_symbols_and_accounts() -> None:
     assert ("AAPL.US", "PLN") in symbols_accounts
     assert ("MSFT.US", "PLN") in symbols_accounts
     assert ("AAPL.US", "EUR") in symbols_accounts
+
+
+def test_prices_fill_market_value_and_pnl() -> None:
+    from datetime import date
+    from portfolio_tracker.pricing.provider import Quote
+
+    # USD account: cost and quote are both USD → native unrealized_pnl is meaningful
+    events = [_trade("e1", "AAPL.US", "10", "100", T1, currency="USD")]
+    prices = {
+        "AAPL.US": Quote(
+            symbol="AAPL.US",
+            price=Decimal("120"),
+            currency="USD",
+            as_of=date(2024, 6, 1),
+            source="yahoo",
+        )
+    }
+    posns = compute_positions(events, prices=prices)
+    assert posns[0].current_price == Decimal("120")
+    assert posns[0].market_value == Decimal("1200")
+    assert posns[0].unrealized_pnl == Decimal("200")  # (120 - 100) * 10
+
+
+def test_no_prices_leaves_fields_none() -> None:
+    events = [_trade("e1", "AAPL.US", "10", "100", T1)]
+    posns = compute_positions(events)
+    assert posns[0].current_price is None
+    assert posns[0].market_value is None
+    assert posns[0].unrealized_pnl is None
+    assert posns[0].market_value_pln is None
+    assert posns[0].weight_pct is None
+
+
+def test_fx_rates_fill_pln_fields() -> None:
+    from datetime import date
+    from portfolio_tracker.pricing.provider import Quote
+
+    # USD account: amount = qty * price in USD, currency = "USD"
+    events = [_trade("e1", "AAPL.US", "10", "100", T1, currency="USD")]
+    prices = {"AAPL.US": Quote(symbol="AAPL.US", price=Decimal("120"), currency="USD", as_of=date(2024, 6, 1), source="yahoo")}
+    fx_rates = {"USD": Decimal("4")}
+    posns = compute_positions(events, prices=prices, fx_rates=fx_rates)
+    assert posns[0].market_value_pln == Decimal("4800")   # 10 * 120 * 4
+    assert posns[0].unrealized_pnl_pln == Decimal("800")  # (120 - 100) * 10 * 4
+    assert posns[0].weight_pct == Decimal("100")
+
+
+def test_weight_pct_across_positions() -> None:
+    from datetime import date
+    from portfolio_tracker.pricing.provider import Quote
+
+    events = [
+        _trade("e1", "AAPL.US", "10", "100", T1),
+        _trade("e2", "MSFT.US", "5", "200", T1),
+    ]
+    prices = {
+        "AAPL.US": Quote(symbol="AAPL.US", price=Decimal("100"), currency="USD", as_of=date(2024, 6, 1), source="yahoo"),
+        "MSFT.US": Quote(symbol="MSFT.US", price=Decimal("200"), currency="USD", as_of=date(2024, 6, 1), source="yahoo"),
+    }
+    fx_rates = {"USD": Decimal("1")}
+    posns = compute_positions(events, prices=prices, fx_rates=fx_rates)
+    # market values: AAPL=1000, MSFT=1000 → 50/50
+    by_symbol = {p.symbol: p for p in posns}
+    assert by_symbol["AAPL.US"].weight_pct == Decimal("50")
+    assert by_symbol["MSFT.US"].weight_pct == Decimal("50")
+
+
+def test_sorted_by_market_value_pln_descending() -> None:
+    from datetime import date
+    from portfolio_tracker.pricing.provider import Quote
+
+    events = [
+        _trade("e1", "AAPL.US", "1", "100", T1),
+        _trade("e2", "MSFT.US", "1", "500", T1),
+    ]
+    prices = {
+        "AAPL.US": Quote(symbol="AAPL.US", price=Decimal("100"), currency="USD", as_of=date(2024, 6, 1), source="yahoo"),
+        "MSFT.US": Quote(symbol="MSFT.US", price=Decimal("500"), currency="USD", as_of=date(2024, 6, 1), source="yahoo"),
+    }
+    posns = compute_positions(events, prices=prices, fx_rates={"USD": Decimal("1")})
+    assert posns[0].symbol == "MSFT.US"
+    assert posns[1].symbol == "AAPL.US"
+
+
+def test_currency_mismatch_skips_native_pnl_but_computes_pln() -> None:
+    """LYPS.PL: avg_cost in PLN (Warsaw), current_price in EUR (Xetra override).
+    Native unrealized_pnl must be None; unrealized_pnl_pln must be correct.
+    """
+    from datetime import date
+    from portfolio_tracker.pricing.provider import Quote
+
+    # avg_cost = 246.60 PLN (XTB Warsaw price), 35 shares → total cost = 8,631 PLN
+    events = [_trade("e1", "LYPS.PL", "35", "246.60", T1)]
+    # Yahoo resolves LYPS.PL → LYPS.DE → EUR 66.19
+    prices = {"LYPS.PL": Quote(symbol="LYPS.PL", price=Decimal("66.19"), currency="EUR", as_of=date(2024, 6, 1), source="yahoo")}
+    fx_rates = {"EUR": Decimal("4.25")}
+
+    posns = compute_positions(events, prices=prices, fx_rates=fx_rates)
+    pos = posns[0]
+
+    assert pos.cost_currency == "PLN"
+    assert pos.quote_currency == "EUR"
+    assert pos.unrealized_pnl is None  # currencies differ — meaningless to subtract
+    # market_value_pln = 35 * 66.19 * 4.25 = 9,843.2...
+    assert pos.market_value_pln is not None
+    # cost in PLN = 35 * 246.60 * 1.0 = 8,631
+    # unrealized_pnl_pln = 9,843.2 - 8,631 = positive
+    assert pos.unrealized_pnl_pln is not None
+    assert pos.unrealized_pnl_pln > 0
 
 
 def test_non_trade_events_ignored() -> None:
