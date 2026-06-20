@@ -7,6 +7,21 @@ from typing import Any
 
 class AssetClass(StrEnum):
     EQUITY = "equity"
+    FIXED_INCOME = "fixed-income"
+    COMMODITY = "commodity"
+    CRYPTO = "crypto"
+    CASH = "cash"
+    REAL_ESTATE = "real-estate"
+
+
+class Role(StrEnum):
+    CORE = "core"
+    SATELLITE = "satellite"
+    THEMATIC = "thematic"
+    REAL_ASSETS = "real-assets"
+    CRYPTO = "crypto"
+    FIXED_INCOME = "fixed-income"
+    CASH = "cash"
 
 
 @dataclass(frozen=True)
