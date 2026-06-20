@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from portfolio_tracker.pricing.provider import Quote
 
 
-def _wrapper_of(account_id: str) -> str:
-    uid = account_id.upper()
-    if uid.startswith("IKZE"):
+def wrapper_of(account_id: str) -> str:
+    parts = account_id.upper().split("_")
+    if "IKZE" in parts:
         return "IKZE"
-    if uid.startswith("IKE"):
+    if "IKE" in parts:
         return "IKE"
     return "REGULAR"
 
@@ -131,7 +131,7 @@ def compute_pnl(
         if by == "currency":
             return currency
         if by == "wrapper":
-            return _wrapper_of(account_id)
+            return wrapper_of(account_id)
         if by == "asset-class":
             return symbol_to_asset_class.get(symbol or "", "Unknown") if symbol else "Unknown"
         return "unknown"

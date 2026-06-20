@@ -211,6 +211,21 @@ def positions(
         row.append(pos.quote_currency)
         table.add_row(*row)
 
+    if has_pln:
+        table.add_section()
+        total_mv_pln = sum((p.market_value_pln for p in posns if p.market_value_pln is not None), Decimal(0))
+        total_unreal_pln = sum((p.unrealized_pnl_pln for p in posns if p.unrealized_pnl_pln is not None), Decimal(0))
+        total_row = ["[bold]TOTAL[/bold]", "", "—", "—"]
+        if has_prices:
+            total_row += ["—", "—", "—"]
+        total_row += [
+            f"[bold]{total_mv_pln:,.0f}[/bold]",
+            "[bold]" + _pnl(total_unreal_pln) + "[/bold]",
+            "[bold]100.0%[/bold]",
+        ]
+        total_row.append("[bold]PLN[/bold]")
+        table.add_row(*total_row)
+
     console.print(table)
 
     if unpriced:
@@ -218,6 +233,130 @@ def positions(
             f"\n[yellow]⚠ No price for: {', '.join(unpriced)}"
             f" — add to {_TICKER_MAP}[/yellow]"
         )
+
+
+_WRAPPER_ORDER = ["REGULAR", "IKE", "IKZE"]
+_WRAPPER_LABEL = {
+    "REGULAR": "REGULAR (taxable)",
+    "IKE": "IKE (tax-exempt)",
+    "IKZE": "IKZE (tax-exempt)",
+}
+
+
+def _render_pnl_table(
+    result: "PnlResult",
+    by: str,
+    top: int | None,
+    show_fx_cash: bool,
+    wrapper_label: str = "",
+) -> None:
+    from decimal import Decimal
+
+    is_period = result.period_label != "lifetime"
+    col_label = by.capitalize() if by != "asset-class" else "Asset class"
+    period_note = "\n[dim]realized/income = during period; unrealized = current snapshot[/dim]" if is_period else ""
+    wrapper_part = f" — {wrapper_label}" if wrapper_label else ""
+
+    if by == "account":
+        title = f"P/L by account — {result.period_label}{wrapper_part} (reporting: PLN){period_note}"
+        table = Table(title=title, box=rich.box.ROUNDED)
+        table.add_column(col_label)
+        table.add_column("Realized", justify="right")
+        table.add_column("Dividends", justify="right")
+        table.add_column("Interest", justify="right")
+        table.add_column("Fees", justify="right")
+        table.add_column("Taxes", justify="right")
+        table.add_column("Unrealized" + (" (now)" if is_period else ""), justify="right")
+        table.add_column("Total", justify="right")
+        table.add_column("Return% (vs cost)", justify="right")
+    else:
+        title = f"P/L by {by} — {result.period_label}{wrapper_part} (reporting: PLN){period_note}"
+        table = Table(title=title, box=rich.box.ROUNDED)
+        table.add_column(col_label)
+        table.add_column("Realized", justify="right")
+        table.add_column("Unrealized" + (" (now)" if is_period else ""), justify="right")
+        table.add_column("Income", justify="right")
+        table.add_column("Total", justify="right")
+        table.add_column("Return% (vs cost)", justify="right")
+
+    def _signed(val: Decimal) -> str:
+        if val == 0:
+            return "—"
+        sign = "+" if val > 0 else ""
+        color = "green" if val > 0 else "red"
+        return f"[{color}]{sign}{val:,.0f}[/{color}]"
+
+    def _pct(val: Decimal | None) -> str:
+        if val is None:
+            return "—"
+        sign = "+" if val > 0 else ""
+        color = "green" if val > 0 else "red"
+        return f"[{color}]{sign}{val:.1f}%[/{color}]"
+
+    for r in (result.rows[:top] if top else result.rows):
+        if by == "account":
+            table.add_row(
+                r.group_key,
+                _signed(r.realized_pln),
+                _signed(r.dividends_pln),
+                _signed(r.interest_pln),
+                _signed(r.fees_pln),
+                _signed(r.taxes_pln),
+                _signed(r.unrealized_pln),
+                _signed(r.total_pln),
+                _pct(r.total_return_pct),
+            )
+        else:
+            table.add_row(
+                r.group_key,
+                _signed(r.realized_pln),
+                _signed(r.unrealized_pln),
+                _signed(r.income_pln),
+                _signed(r.total_pln),
+                _pct(r.total_return_pct),
+            )
+
+    fx = result.fx_cash_pln if show_fx_cash else Decimal(0)
+
+    if show_fx_cash and result.period_label == "lifetime" and fx != 0:
+        table.add_section()
+        if by == "account":
+            table.add_row("fx/cash", "—", "—", "—", "—", "—", "—", _signed(fx), "—")
+        else:
+            table.add_row("fx/cash", "—", "—", "—", _signed(fx), "—")
+
+    table.add_section()
+    t = result.total
+    grand_total = t.total_pln + fx
+    total_pct = (grand_total / t.cost_basis_pln * Decimal(100)) if t.cost_basis_pln > 0 else None
+    if by == "account":
+        table.add_row(
+            "[bold]TOTAL[/bold]",
+            "[bold]" + _signed(t.realized_pln) + "[/bold]",
+            "[bold]" + _signed(t.dividends_pln) + "[/bold]",
+            "[bold]" + _signed(t.interest_pln) + "[/bold]",
+            "[bold]" + _signed(t.fees_pln) + "[/bold]",
+            "[bold]" + _signed(t.taxes_pln) + "[/bold]",
+            "[bold]" + _signed(t.unrealized_pln) + "[/bold]",
+            "[bold]" + _signed(grand_total) + "[/bold]",
+            "[bold]" + _pct(total_pct) + "[/bold]",
+        )
+    else:
+        table.add_row(
+            "[bold]TOTAL[/bold]",
+            "[bold]" + _signed(t.realized_pln) + "[/bold]",
+            "[bold]" + _signed(t.unrealized_pln) + "[/bold]",
+            "[bold]" + _signed(t.income_pln) + "[/bold]",
+            "[bold]" + _signed(grand_total) + "[/bold]",
+            "[bold]" + _pct(total_pct) + "[/bold]",
+        )
+
+    console.print(table)
+
+    if result.unpriced_symbols:
+        console.print(f"\n[yellow]⚠ No price for: {', '.join(result.unpriced_symbols)}[/yellow]")
+    if show_fx_cash and result.period_label == "lifetime" and fx != 0:
+        console.print("[dim]TOTAL ties to summary (includes fx/cash residual)[/dim]")
 
 
 @app.command()
@@ -239,7 +378,7 @@ def pnl(
     from portfolio_tracker.pricing.cache import CachingProvider
     from portfolio_tracker.pricing.provider import Quote
     from portfolio_tracker.pricing.yahoo import YahooFinanceProvider
-    from portfolio_tracker.reports.pnl import compute_pnl
+    from portfolio_tracker.reports.pnl import compute_pnl, wrapper_of
     from portfolio_tracker.reports.positions import compute_positions
     from portfolio_tracker.domain.events import EventType
     from portfolio_tracker.storage.ledger import read
@@ -248,7 +387,6 @@ def pnl(
         console.print("[yellow]No ledger found — run 'tracker load xtb' first.[/yellow]")
         raise typer.Exit(1)
 
-    # Parse period bounds
     date_from: dt.date | None = None
     date_to: dt.date | None = None
     if period:
@@ -280,126 +418,42 @@ def pnl(
             "GBP": all_quotes["GBPPLN=X"].price if "GBPPLN=X" in all_quotes else Decimal("1"),
         }
 
-    result = compute_pnl(
-        events,
-        prices=prices,
-        fx_rates=fx_rates,
-        by=by,
-        date_from=date_from,
-        date_to=date_to,
-        sort_by=sort,
+    wrappers_present = sorted(
+        {wrapper_of(e.account_id) for e in events},
+        key=lambda w: _WRAPPER_ORDER.index(w) if w in _WRAPPER_ORDER else 99,
     )
+    split_by_wrapper = len(wrappers_present) > 1 and by != "wrapper"
 
-    # ── table ───────────────────────────────────────────────────────────────
-    is_period = result.period_label != "lifetime"
-    col_label = by.capitalize() if by != "asset-class" else "Asset class"
-
-    if by == "account":
-        title = f"P/L by account — {result.period_label} (reporting: PLN)"
-        if is_period:
-            title += "\n[dim]realized/income = during period; unrealized = current snapshot[/dim]"
-        table = Table(title=title, box=rich.box.ROUNDED)
-        table.add_column(col_label)
-        table.add_column("Realized", justify="right")
-        table.add_column("Dividends", justify="right")
-        table.add_column("Interest", justify="right")
-        table.add_column("Fees", justify="right")
-        table.add_column("Taxes", justify="right")
-        table.add_column("Unrealized" + (" (now)" if is_period else ""), justify="right")
-        table.add_column("Total", justify="right")
-        table.add_column("Return% (vs cost)", justify="right")
-    else:
-        title = f"P/L by {by} — {result.period_label} (reporting: PLN)"
-        if is_period:
-            title += "\n[dim]realized/income = during period; unrealized = current snapshot[/dim]"
-        table = Table(title=title, box=rich.box.ROUNDED)
-        table.add_column(col_label)
-        table.add_column("Realized", justify="right")
-        table.add_column("Unrealized" + (" (now)" if is_period else ""), justify="right")
-        table.add_column("Income", justify="right")
-        table.add_column("Total", justify="right")
-        table.add_column("Return% (vs cost)", justify="right")
-
-    def _signed(val: Decimal) -> str:
-        if val == 0:
-            return "—"
-        sign = "+" if val > 0 else ""
-        color = "green" if val > 0 else "red"
-        return f"[{color}]{sign}{val:,.0f}[/{color}]"
-
-    def _pct(val: Decimal | None) -> str:
-        if val is None:
-            return "—"
-        sign = "+" if val > 0 else ""
-        color = "green" if val > 0 else "red"
-        return f"[{color}]{sign}{val:.1f}%[/{color}]"
-
-    display_rows = result.rows[:top] if top else result.rows
-
-    for r in display_rows:
-        if by == "account":
-            table.add_row(
-                r.group_key,
-                _signed(r.realized_pln),
-                _signed(r.dividends_pln),
-                _signed(r.interest_pln),
-                _signed(r.fees_pln),
-                _signed(r.taxes_pln),
-                _signed(r.unrealized_pln),
-                _signed(r.total_pln),
-                _pct(r.total_return_pct),
+    if split_by_wrapper:
+        for i, wrapper in enumerate(wrappers_present):
+            wrapper_events = [e for e in events if wrapper_of(e.account_id) == wrapper]
+            result = compute_pnl(
+                wrapper_events,
+                prices=prices,
+                fx_rates=fx_rates,
+                by=by,
+                date_from=date_from,
+                date_to=date_to,
+                sort_by=sort,
             )
-        else:
-            table.add_row(
-                r.group_key,
-                _signed(r.realized_pln),
-                _signed(r.unrealized_pln),
-                _signed(r.income_pln),
-                _signed(r.total_pln),
-                _pct(r.total_return_pct),
+            if i > 0:
+                console.print()
+            _render_pnl_table(
+                result, by, top,
+                show_fx_cash=(wrapper == "REGULAR"),
+                wrapper_label=_WRAPPER_LABEL.get(wrapper, wrapper),
             )
-
-    # fx/cash residual row (lifetime only, non-zero)
-    if result.period_label == "lifetime" and result.fx_cash_pln != 0:
-        table.add_section()
-        if by == "account":
-            table.add_row("fx/cash", "—", "—", "—", "—", "—", "—", _signed(result.fx_cash_pln), "—")
-        else:
-            table.add_row("fx/cash", "—", "—", "—", _signed(result.fx_cash_pln), "—")
-
-    # TOTAL row
-    table.add_section()
-    t = result.total
-    grand_total = t.total_pln + result.fx_cash_pln
-    total_pct = (grand_total / t.cost_basis_pln * Decimal(100)) if t.cost_basis_pln > 0 else None
-    if by == "account":
-        table.add_row(
-            "[bold]TOTAL[/bold]",
-            "[bold]" + _signed(t.realized_pln) + "[/bold]",
-            "[bold]" + _signed(t.dividends_pln) + "[/bold]",
-            "[bold]" + _signed(t.interest_pln) + "[/bold]",
-            "[bold]" + _signed(t.fees_pln) + "[/bold]",
-            "[bold]" + _signed(t.taxes_pln) + "[/bold]",
-            "[bold]" + _signed(t.unrealized_pln) + "[/bold]",
-            "[bold]" + _signed(grand_total) + "[/bold]",
-            "[bold]" + _pct(total_pct) + "[/bold]",
-        )
     else:
-        table.add_row(
-            "[bold]TOTAL[/bold]",
-            "[bold]" + _signed(t.realized_pln) + "[/bold]",
-            "[bold]" + _signed(t.unrealized_pln) + "[/bold]",
-            "[bold]" + _signed(t.income_pln) + "[/bold]",
-            "[bold]" + _signed(grand_total) + "[/bold]",
-            "[bold]" + _pct(total_pct) + "[/bold]",
+        result = compute_pnl(
+            events,
+            prices=prices,
+            fx_rates=fx_rates,
+            by=by,
+            date_from=date_from,
+            date_to=date_to,
+            sort_by=sort,
         )
-
-    console.print(table)
-
-    if result.unpriced_symbols:
-        console.print(f"\n[yellow]⚠ No price for: {', '.join(result.unpriced_symbols)}[/yellow]")
-    if result.period_label == "lifetime" and result.fx_cash_pln != 0:
-        console.print("[dim]TOTAL ties to summary (includes fx/cash residual)[/dim]")
+        _render_pnl_table(result, by, top, show_fx_cash=True)
 
 
 @app.command()
@@ -467,6 +521,7 @@ def summary(
         table.add_column("Net in PLN", justify="right")
         table.add_column("P/L PLN", justify="right")
     table.add_column("P/L %", justify="right")
+    table.add_column("Share %", justify="right")
 
     def _pct_str(pct: Decimal | None) -> str:
         if pct is None:
@@ -475,8 +530,9 @@ def summary(
         color = "green" if pct >= 0 else "red"
         return f"[{color}]{sign}{pct:.1f}%[/{color}]"
 
+    grand_total_pln = result.total.total_value_pln
+
     for row in result.account_rows:
-        is_pln = row.base_currency == "PLN"
         r = [
             row.account_id,
             f"{row.market_value_native:,.0f}",
@@ -488,11 +544,13 @@ def summary(
         ]
         if has_non_pln:
             r += [
-                f"{row.total_value_pln:,.0f}" if not is_pln else "—",
-                f"{row.net_in_pln:,.0f}" if not is_pln else "—",
-                _pnl_str(row.pnl_pln) if not is_pln else "—",
+                f"{row.total_value_pln:,.0f}",
+                f"{row.net_in_pln:,.0f}",
+                _pnl_str(row.pnl_pln),
             ]
         r.append(_pct_str(row.pnl_pct))
+        share = (row.total_value_pln / grand_total_pln * 100) if grand_total_pln else None
+        r.append(f"{share:.1f}%" if share is not None else "—")
         table.add_row(*r)
 
     table.add_section()
@@ -509,6 +567,7 @@ def summary(
     if has_non_pln:
         total_row += ["—", "—", "—"]
     total_row.append("[bold]" + _pct_str(t.pnl_pct) + "[/bold]")
+    total_row.append("[bold]100.0%[/bold]")
     table.add_row(*total_row)
 
     console.print(table)
