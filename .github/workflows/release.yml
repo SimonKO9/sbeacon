@@ -17,8 +17,6 @@ jobs:
 
       - run: git fetch --tags --force
 
-      - run: git tag -l && git log --oneline --decorate -5
-
       - uses: cocogitto/cocogitto-action@v4
         with:
           command: bump
