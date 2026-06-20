@@ -1,6 +1,6 @@
-[changelog]
-path = "CHANGELOG.md"
-
 pre_bump_hooks = [
   "sed -i 's/^version = .*/version = \"{{version}}\"/' pyproject.toml",
 ]
+
+[changelog]
+path = "CHANGELOG.md"
