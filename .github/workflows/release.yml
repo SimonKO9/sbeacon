@@ -27,6 +27,9 @@ jobs:
           git-user-email: github-actions[bot]@users.noreply.github.com
 
       - if: steps.cog.outputs.version != ''
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - if: steps.cog.outputs.version != ''
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -38,5 +41,5 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.cog.outputs.version }}
-            ghcr.io/${{ github.repository }}:latest
+            ${{ env.IMAGE }}:${{ steps.cog.outputs.version }}
+            ${{ env.IMAGE }}:latest
