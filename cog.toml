@@ -1,3 +1,4 @@
+from_latest_tag = true
 skip_ci = "[skip ci]"
 
 pre_bump_hooks = [
