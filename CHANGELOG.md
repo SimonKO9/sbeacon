@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.4 - 2026-06-20
+#### Bug Fixes
+- lowercase image name for GHCR - (d3cbe5d) - Szymon Kownacki
+
+- - -
+
 ## 0.1.3 - 2026-06-20
 #### Bug Fixes
 - merge docker build into release workflow, drop docker.yml - (fb045b6) - Szymon Kownacki
