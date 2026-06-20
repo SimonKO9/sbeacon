@@ -15,10 +15,8 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: git fetch --tags --force
-
-      - uses: cocogitto/cocogitto-action@v3
+      - uses: cocogitto/cocogitto-action@v4
         with:
-          check-latest-tag-only: true
+          command: bump
           git-user: github-actions[bot]
           git-user-email: github-actions[bot]@users.noreply.github.com
