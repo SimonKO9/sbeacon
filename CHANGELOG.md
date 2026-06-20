@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.5 - 2026-06-20
+#### Bug Fixes
+- strip carriage return from version in tracker.sh - (57dc2b4) - Szymon Kownacki
+#### Miscellaneous Chores
+- run published GHCR image in tracker.sh - (f80ed7d) - Szymon Kownacki
+
+- - -
+
 ## 0.1.4 - 2026-06-20
 #### Bug Fixes
 - lowercase image name for GHCR - (d3cbe5d) - Szymon Kownacki
