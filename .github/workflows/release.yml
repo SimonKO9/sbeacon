@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,8 +19,24 @@ jobs:
       - run: git fetch --tags --force
 
       - uses: cocogitto/cocogitto-action@v4
+        id: cog
         with:
           command: bump
           args: --auto
           git-user: github-actions[bot]
           git-user-email: github-actions[bot]@users.noreply.github.com
+
+      - if: steps.cog.outputs.version != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.cog.outputs.version != ''
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.cog.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
