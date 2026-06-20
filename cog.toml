@@ -5,5 +5,10 @@ pre_bump_hooks = [
   "sed -i 's/^version = .*/version = \"{{version}}\"/' pyproject.toml",
 ]
 
+post_bump_hooks = [
+  "git push",
+  "git push --tags",
+]
+
 [changelog]
 path = "CHANGELOG.md"
