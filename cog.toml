@@ -1,3 +1,5 @@
+skip_ci = "[skip ci]"
+
 pre_bump_hooks = [
   "sed -i 's/^version = .*/version = \"{{version}}\"/' pyproject.toml",
 ]
