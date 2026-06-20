@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.2 - 2026-06-20
+#### Bug Fixes
+- match semver tags without v prefix in docker workflow - (ef24558) - Szymon Kownacki
+
+- - -
+
 ## 0.1.1 - 2026-06-20
 #### Bug Fixes
 - push bump commit and tag via post_bump_hooks - (d3a55b3) - Szymon Kownacki
