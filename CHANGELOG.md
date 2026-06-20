@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.6 - 2026-06-20
+#### Bug Fixes
+- pass COLUMNS to container for correct terminal width - (5a72ca3) - Szymon Kownacki
+
+- - -
+
 ## 0.1.5 - 2026-06-20
 #### Bug Fixes
 - strip carriage return from version in tracker.sh - (57dc2b4) - Szymon Kownacki
