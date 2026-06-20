@@ -24,6 +24,7 @@ _LEDGER = Path("data/ledger.jsonl")
 _DB = Path("data/index.duckdb")
 _PRICES_DB = Path("data/prices.duckdb")
 _CONFIG = Path("data/config.yaml")
+_TICKER_MAP = Path("data/ticker-map.yaml")
 
 
 @load_app.command("xtb")
@@ -153,7 +154,7 @@ def positions(
     prices: dict[str, Quote] = {}
     fx_rates: dict[str, Decimal] = {}
     if not no_prices:
-        provider = CachingProvider(YahooFinanceProvider(), prices_db, "yahoo")
+        provider = CachingProvider(YahooFinanceProvider(ticker_map_path=_TICKER_MAP), prices_db, "yahoo")
         symbols = [p.symbol for p in posns]
         fx_pairs = ["USDPLN=X", "EURPLN=X", "GBPPLN=X"]
         with console.status("Fetching prices…"):
@@ -165,6 +166,7 @@ def positions(
             "GBP": all_quotes["GBPPLN=X"].price if "GBPPLN=X" in all_quotes else Decimal("1"),
         }
 
+    unpriced = [s for s in (symbols if not no_prices else []) if s not in prices]
     posns = compute_positions(events, prices=prices, fx_rates=fx_rates if fx_rates else None)
 
     has_prices = bool(prices)
@@ -210,6 +212,12 @@ def positions(
         table.add_row(*row)
 
     console.print(table)
+
+    if unpriced:
+        console.print(
+            f"\n[yellow]⚠ No price for: {', '.join(unpriced)}"
+            f" — add to {_TICKER_MAP}[/yellow]"
+        )
 
 
 @app.command()
@@ -262,7 +270,7 @@ def pnl(
         positions_stub = compute_positions(trade_events)
         symbols = list({p.symbol for p in positions_stub})
         fx_pairs = ["USDPLN=X", "EURPLN=X", "GBPPLN=X"]
-        provider = CachingProvider(YahooFinanceProvider(), prices_db, "yahoo")
+        provider = CachingProvider(YahooFinanceProvider(ticker_map_path=_TICKER_MAP), prices_db, "yahoo")
         with console.status("Fetching prices…"):
             all_quotes = provider.latest(symbols + fx_pairs)
         prices = {s: q for s, q in all_quotes.items() if s in set(symbols)}
@@ -425,7 +433,7 @@ def summary(
         positions_stub = compute_positions(trade_events)
         symbols = list({p.symbol for p in positions_stub})
         fx_pairs = ["USDPLN=X", "EURPLN=X", "GBPPLN=X"]
-        provider = CachingProvider(YahooFinanceProvider(), prices_db, "yahoo")
+        provider = CachingProvider(YahooFinanceProvider(ticker_map_path=_TICKER_MAP), prices_db, "yahoo")
         with console.status("Fetching prices…"):
             all_quotes = provider.latest(symbols + fx_pairs)
         prices = {s: q for s, q in all_quotes.items() if s in set(symbols)}
@@ -842,7 +850,7 @@ def allocation(
         positions_stub = compute_positions(trade_events)
         symbols = list({p.symbol for p in positions_stub})
         fx_pairs = ["USDPLN=X", "EURPLN=X", "GBPPLN=X"]
-        provider = CachingProvider(YahooFinanceProvider(), prices_db, "yahoo")
+        provider = CachingProvider(YahooFinanceProvider(ticker_map_path=_TICKER_MAP), prices_db, "yahoo")
         with console.status("Fetching prices…"):
             all_quotes = provider.latest(symbols + fx_pairs)
         prices = {s: q for s, q in all_quotes.items() if s in set(symbols)}
@@ -937,7 +945,7 @@ def _tax_prices_and_fx(
         positions_stub = compute_positions(trade_events)
         symbols = list({p.symbol for p in positions_stub})
         fx_pairs = ["USDPLN=X", "EURPLN=X", "GBPPLN=X"]
-        provider = CachingProvider(YahooFinanceProvider(), prices_db, "yahoo")
+        provider = CachingProvider(YahooFinanceProvider(ticker_map_path=_TICKER_MAP), prices_db, "yahoo")
         with console.status("Fetching prices…"):
             all_quotes = provider.latest(symbols + fx_pairs)
         prices = {s: q for s, q in all_quotes.items() if s in set(symbols)}

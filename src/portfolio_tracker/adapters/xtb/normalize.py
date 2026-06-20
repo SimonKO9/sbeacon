@@ -29,6 +29,7 @@ TYPE_MAP: dict[str, EventType] = {
     "subaccount transfer": EventType.TRANSFER,
     "ike deposit": EventType.TRANSFER,
     "ikze deposit": EventType.TRANSFER,
+    "withdrawal": EventType.WITHDRAWAL,
 }
 
 
