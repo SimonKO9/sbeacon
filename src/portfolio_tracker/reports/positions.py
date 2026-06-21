@@ -107,6 +107,15 @@ def compute_positions(
             cost_value_pln = pos.avg_cost * pos.quantity * cost_rate
             pos.unrealized_pnl_pln = pos.market_value_pln - cost_value_pln
 
+            # Cost is PLN but price comes from a foreign proxy ticker (e.g. LYPS.DE for LYPS.PL).
+            # Convert native fields to PLN so the non-PLN columns are meaningful.
+            if pos.cost_currency == "PLN" and pos.quote_currency != "PLN":
+                if pos.current_price is not None:
+                    pos.current_price = pos.current_price * price_rate
+                pos.market_value = pos.market_value_pln
+                pos.unrealized_pnl = pos.unrealized_pnl_pln
+                pos.quote_currency = "PLN"
+
         total_pln = sum((p.market_value_pln for p in positions if p.market_value_pln is not None), Decimal(0))
         if total_pln > 0:
             for pos in positions:

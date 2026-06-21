@@ -177,9 +177,9 @@ def test_sorted_by_market_value_pln_descending() -> None:
     assert posns[1].symbol == "AAPL.US"
 
 
-def test_currency_mismatch_skips_native_pnl_but_computes_pln() -> None:
-    """LYPS.PL: avg_cost in PLN (Warsaw), current_price in EUR (Xetra override).
-    Native unrealized_pnl must be None; unrealized_pnl_pln must be correct.
+def test_pln_cost_foreign_proxy_converts_native_fields() -> None:
+    """LYPS.PL: avg_cost in PLN (Warsaw), current_price from LYPS.DE (EUR proxy).
+    Native fields must be converted to PLN so the positions table shows meaningful values.
     """
     from datetime import date
     from portfolio_tracker.pricing.provider import Quote
@@ -194,14 +194,17 @@ def test_currency_mismatch_skips_native_pnl_but_computes_pln() -> None:
     pos = posns[0]
 
     assert pos.cost_currency == "PLN"
-    assert pos.quote_currency == "EUR"
-    assert pos.unrealized_pnl is None  # currencies differ — meaningless to subtract
-    # market_value_pln = 35 * 66.19 * 4.25 = 9,843.2...
-    assert pos.market_value_pln is not None
-    # cost in PLN = 35 * 246.60 * 1.0 = 8,631
-    # unrealized_pnl_pln = 9,843.2 - 8,631 = positive
-    assert pos.unrealized_pnl_pln is not None
-    assert pos.unrealized_pnl_pln > 0
+    # quote_currency promoted to PLN after conversion
+    assert pos.quote_currency == "PLN"
+    # current_price converted: 66.19 * 4.25 = 281.3075
+    assert pos.current_price == Decimal("66.19") * Decimal("4.25")
+    # market_value_pln = market_value = 35 * 66.19 * 4.25 = 9,843.2...
+    assert pos.market_value is not None
+    assert pos.market_value == pos.market_value_pln
+    # unrealized_pnl = unrealized_pnl_pln = 9,843.2 - 8,631 > 0
+    assert pos.unrealized_pnl is not None
+    assert pos.unrealized_pnl == pos.unrealized_pnl_pln
+    assert pos.unrealized_pnl > 0
 
 
 def test_non_trade_events_ignored() -> None:
