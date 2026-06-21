@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.2.1 - 2026-06-21
+#### Bug Fixes
+- convert native price fields to PLN when cost is PLN but quote comes from foreign proxy ticker - (c8b8f2e) - Szymon Kownacki
+
+- - -
+
 ## 0.2.0 - 2026-06-21
 #### Features
 - per-wrapper pnl tables, positions totals row, summary share% and PLN columns fix - (745e6a3) - Szymon Kownacki
