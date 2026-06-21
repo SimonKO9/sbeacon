@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.2.0 - 2026-06-21
+#### Features
+- per-wrapper pnl tables, positions totals row, summary share% and PLN columns fix - (745e6a3) - Szymon Kownacki
+
+- - -
+
 ## 0.1.7 - 2026-06-20
 #### Bug Fixes
 - handle withdrawals in XTB import and resolve tickers via Yahoo search with file-backed map - (db53772) - Szymon Kownacki
